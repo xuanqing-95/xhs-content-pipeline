@@ -44,10 +44,39 @@
 
 ### Step 4：生成配图
 
-1. 读 `references/brand.md` 获取风格和 prompt 模板
-2. 用 `image_generate` 生成 4 张配图（aspectRatio: `3:4`），逐张生成，失败跳过
-3. 上传流程：upload 到根目录 → 用 `feishu_drive_file` move 到目标文件夹
-4. 推送配图结果；全部失败则推「配图生成失败，请手动补充」→ 继续 Step 5
+配图由 `baoyu-xhs-images` skill 生成（HTML 渲染卡片图，支持中文文字）。
+
+**4.1 确认生图方案（必须停一次）**
+
+展示内容分析结果，并推荐：
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎨 配图方案（自动匹配）
+  风格：[style]（[reason]）
+  布局：[layout]
+  张数：[N]张（封面+[N-2]内容+结尾）
+  切换风格：回复「用 XX 风格」可更换
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+等待用户确认（回复「好」/「确认」）或调整风格后，立即执行 4.2。
+
+**4.2 调用 baoyu-xhs-images 生成**
+
+- 读 `references/brand.md` 获取风格匹配建议
+- 把步骤 3 生成的标题+正文作为输入，传入确认的 style 和 layout，调用 baoyu-xhs-images 工作流：
+  - baoyu-xhs-images 会自己分析内容并确定张数，不固定为 4 张
+  - 使用 `--yes` 跳过其内部二次确认（已在步骤 4.1 确认过）
+  - 传入确定的参数：`--style {style} --layout {layout} --yes`
+  - 如用户没有指定风格，直接用 `--yes`，让 baoyu-xhs-images 自动判断
+- 生成的图片保存在 `xhs-images/{topic-slug}/` 目录下
+
+**4.3 上传到飞书云空间**
+
+- 逐张上传：upload 到根目录 → `feishu_drive_file move` 到配图文件夹
+- 失败跳过，不阻断流程
+- 推送配图结果；全部失败则推「配图生成失败，请手动补充」→ 继续 Step 5
 
 ### Step 5：写入内容生成库
 

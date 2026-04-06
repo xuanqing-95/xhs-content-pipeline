@@ -19,7 +19,7 @@ version: 4.1.0
 |------|------|----------|
 | `references/config.md` | 默认 ID/Token（fallback） | 无动态配置时 |
 | `references/tables.md` | 表格字段定义 + 爆款评级规则 | 写入表格前 / 建表时 |
-| `references/brand.md` | 品牌风格 + 配图 prompt 模板 | 生成配图前 |
+| `references/brand.md` | 品牌风格 + 风格映射建议 | 生成配图前（传给 baoyu-xhs-images 参考） |
 | `references/sensitive-words.md` | 敏感词替换规则 | 生成文案后 |
 | `references/workflows.md` | 各模式详细流程 | 执行对应模式前 |
 
@@ -98,7 +98,7 @@ step 3-6 → 自动连续执行（文案→配图→归档→草稿）
 关键要点：
 - Step 1：从选题库取 `选题状态 is 待选` 的记录，filter 用 `is` 不用 `isNot`
 - Step 2：五维分析 → 生成 2 个方向 → 等用户选
-- Step 3-6：文案（含敏感词替换）→ 配图（逐张生成，失败跳过）→ 写入内容生成库 → 推送草稿
+- Step 3-6：文案（含敏感词替换）→ 配图（baoyu-xhs-images 生成，张数由内容决定，有一次方案确认，确认后自动完成）→ 写入内容生成库 → 推送草稿
 - 草稿发出后，写状态 `active=false, step=0`
 
 **飞书数据解析：** `fields["选题标题"][0].text`
@@ -183,3 +183,5 @@ step 3-6 → 自动连续执行（文案→配图→归档→草稿）
 5. **配图失败不阻断流程**，跳过继续
 6. **仿写模式不在 Step 2 停留**，自动完成分析直接进 Step 3
 7. **仿写模式不生成「方向1/方向2」**，只有原文方向
+8. **Step 4 只停一次**（方案确认），确认后 baoyu-xhs-images 内部用 `--yes`，不再询问
+9. **张数由 baoyu-xhs-images 根据内容决定**，不写死为 4 张
