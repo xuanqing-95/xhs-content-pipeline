@@ -1,0 +1,12 @@
+# 运行时配置（用户自定义）
+# 复制 config.example.yaml 为此文件并填写真实值
+
+feishu:
+  app_token: "NdpBbD8jray5fDs77gScXZ9vnId"
+  chat_id: "oc_602f35b88d99d65d32d21b4510260e0f"
+  image_folder_token: "D82efvisxlshojd9qTscNkxrnEh"
+
+tables:
+  topic_table_id: "tblBBoGrB5W6DfB4"
+  analysis_table_id: "tblQ8BCiybOzQa2z"
+  content_table_id: "tblcdl9yD51wZHVt"

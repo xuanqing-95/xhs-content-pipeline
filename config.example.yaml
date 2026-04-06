@@ -1,0 +1,30 @@
+# 用户配置（复制此文件为 config.yaml 并修改）
+# 注意：不要把包含真实 token 的 config.yaml 提交到 GitHub！
+
+feishu:
+  # 飞书多维表格 App Token（必填）
+  app_token: "你的表格app_token"
+  
+  # 飞书群 ID（必填，用于推送消息）
+  chat_id: "你的飞书群ID"
+  
+  # 配图上传文件夹 Token（必填）
+  image_folder_token: "你的文件夹token"
+
+tables:
+  # 选题库 table_id（必填）
+  topic_table_id: "tblxxx"
+  
+  # 选题分析表 table_id（必填）
+  analysis_table_id: "tblxxx"
+  
+  # 小红书内容生成库 table_id（必填）
+  content_table_id: "tblxxx"
+
+# 可选配置
+options:
+  # 每次推送选题数量
+  topic_count: 3
+  
+  # 配图数量
+  image_count: 4
