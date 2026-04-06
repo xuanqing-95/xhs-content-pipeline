@@ -1,0 +1,34 @@
+{
+  "skill_name": "xhs-content-pipeline",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "推选题",
+      "expected_output": "从选题库取3个选题推送到飞书群，等待用户选择1/2/3",
+      "assertions": [
+        {"text": "should call feishu_bitable_app_table_record to fetch from table tblBBoGrB5W6DfB4", "passed": false, "evidence": ""},
+        {"text": "should send exactly 3 topic options", "passed": false, "evidence": ""},
+        {"text": "should ask user to reply with 1/2/3", "passed": false, "evidence": ""}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "1",
+      "expected_output": "触发选题分析流程，分析选定的选题并推送到群",
+      "assertions": [
+        {"text": "should analyze the selected topic", "passed": false, "evidence": ""},
+        {"text": "should write to analysis table tblQ8BCiybOzQa2z", "passed": false, "evidence": ""},
+        {"text": "should send analysis to feishu group", "passed": false, "evidence": ""}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "今天推什么",
+      "expected_output": "触发选题推送流程，效果同'推选题'",
+      "assertions": [
+        {"text": "should trigger the pipeline (not just answer conversationally)", "passed": false, "evidence": ""},
+        {"text": "should fetch topics from tblBBoGrB5W6DfB4", "passed": false, "evidence": ""}
+      ]
+    }
+  ]
+}

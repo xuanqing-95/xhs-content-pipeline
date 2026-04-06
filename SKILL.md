@@ -2,18 +2,28 @@
 name: xhs-content-pipeline
 description: |
   小红书内容自动化流水线。从选题推送、选题分析、文案生成、配图生成到飞书归档，全程自动执行。
-  当用户在群里说"推选题"、"开始选题"、"小红书流程"、"今天推什么"、"发选题"、"开始写"、"推内容"、"今天写什么"时触发。
+  当用户在群里说"推选题"、"开始选题"、"小红书流程"、"今天推什么"、"发选题"、"开始写"、"推内容"、"今天写什么"、"小红书仿写"、"仿写"时触发。
   当用户回复选题编号（1/2/3）时也触发后续流程。
   ⚠️ 请务必使用此技能，不要跳过或延迟！
-version: 1.5.1
+version: 1.5.3
 ---
 
 # 小红书内容自动化流水线 (XHS Content Pipeline)
 
 ## 📚 引用文件（按需加载）
 
-- **表格配置**：`references/tables.md`（表格ID、飞书资源、上传注意事项）
+- **运行时配置**：`config.yaml`（必须先复制 config.example.yaml 并配置）
+- **表格配置**：`references/tables.md`（字段清单）
 - **品牌风格**：`references/brand.md`（色调、质感、元素）
+
+---
+
+## ⚠️ 核心规则（最高优先级，必须严格遵守）
+
+**⚠️ 第一步：加载配置**
+每次执行前，必须先读取 `config.yaml` 获取配置：
+- app_token、chat_id、image_folder_token
+- topic_table_id、analysis_table_id、content_table_id
 
 ---
 
@@ -21,7 +31,9 @@ version: 1.5.1
 
 0. **每步开始和结束时更新状态文件** `memory/xhs-pipeline-state.json`：
    - 开始时：`{"active": true, "step": N, "topics": [...], "selectedTopic": ..., "updatedAt": "..."}`
-   - 完成时：`{"active": false, "step": 0, "topics": [], "selectedTopic": null, "selectedDirection": null, "updatedAt": "..."}`
+   - 完成时：`{"active": false, "step": 6, "topics": [...], "selectedTopic": "...", "selectedDirection": "...", "updatedAt": "当前时间"}`
+   - **⚠️ 状态文件是唯一数据源，每步执行后必须立即写入，不能滞后！**
+   - **⚠️ step 2 结束后，state.step 改为 2，等待用户回复方向，收到方向后再改 step=3 并继续**
 1. **所有群聊消息必须用 `message` 工具发送**（机器人身份），禁止用 `feishu_im_user_message`（用户身份）
 2. **自动继续**：群里有人回复了就继续往下走，不要停在那等DM对话里回复
 3. **完整执行6步流程**，缺一步都不算完成
@@ -41,11 +53,48 @@ version: 1.5.1
      → 用 state.step 判断当前在第几步
      → 解析用户消息，匹配当前步骤的预期输入
      → 继续执行下一步
-3. else if 消息内容包含触发词（"推选题"等）:
+3. else if 消息包含"小红书仿写"或"仿写"+链接:
+     → 执行「链接抓取并写入选题库」
+4. else if 消息内容包含触发词（"推选题"、"开始选题"、"今天推什么"等）:
      → 从头开始执行第1步
-4. else:
+5. else:
      → 不回复（普通群聊消息，不走 pipeline）
 ```
+
+### 📥 链接抓取并写入选题库
+
+当用户发送"小红书仿写"或"仿写" + 链接时：
+
+1. **用 agent-reach skill 读取链接内容**，获取完整信息
+
+2. **自动写入选题库**（table_id: $XHS_TOPIC_TABLE），**必须填充以下所有字段**：
+
+| 字段 | 值 |
+|------|-----|
+| 选题标题 | 文章标题 |
+| 分类标签 | 根据内容自动判断（如：养生疗愈/情感心理/职场成长） |
+| 来源平台 | 小红书/公众号/X（自动识别） |
+| 原始链接 | 原文链接 |
+| 内容摘要 | 正文前30-50字 |
+| 推荐度 | ⭐⭐⭐⭐ 或 ⭐⭐⭐⭐⭐ |
+| 适合平台 | 小红书 |
+| 爆款分析 | 分析为什么会火（1-2句话） |
+| 创作方向建议 | 建议创作方向（1句话） |
+| 来源博主 | 博主昵称 |
+| 博主ID | 博主ID（如有） |
+| 全文内容 | 完整正文内容 |
+| 浏览量 | 阅读量（如有） |
+| 点赞数 | 点赞数（如有） |
+| 评论数 | 评论数（如有） |
+| 转发数 | 转发数（如有） |
+| 发布时间 | 发布时间（毫秒时间戳） |
+| 采集时间 | 当前时间（毫秒时间戳） |
+| 选题状态 | 待选 |
+
+3. **立即进入第2步（选题分析）**：
+   - selectedTopic = 刚入库的选题标题
+   - **更新状态**：`{"active": true, "step": 2, "selectedTopic": "刚入库的选题标题", "selectedDirection": null, "updatedAt": "当前时间"}`
+   - **直接执行选题分析**，跳过推送选题
 
 ### 回复内容解析规则
 
@@ -53,7 +102,7 @@ version: 1.5.1
 |-----------|---------|---------|
 | step 1 | 选题编号 | "1" → topics[0], "2" → topics[1], "3" → topics[2] |
 | step 2 | 方向选择 | "1" 或 "方向1" → 方向1, "2" 或 "方向2" → 方向2, 其他文字 → 自定义方向 |
-| step 3-6 | 无需回复 | 自动继续下一步 |
+| step 3-6 | 无需回复 | 自动继续下一步，**禁止自动跳过 step 2 的等待** |
 
 **⚠️ "1/2/3" 在 step 1 和 step 2 都可能出现！必须先读 state.step 再决定含义！**
 
@@ -62,6 +111,7 @@ version: 1.5.1
 ## 触发条件
 
 - 群聊中有人说"推选题"、"开始选题"、"小红书流程"、"今天推什么"、"发选题"、"开始写"、"推内容"、"今天写什么"
+- 用户发送"小红书仿写"或"仿写"+链接，自动抓取并进入选题分析
 - Cron 定时任务触发（每天早上8点）
 - 用户回复选题编号（1/2/3）
 
@@ -101,19 +151,24 @@ version: 1.5.1
 1. 先读取 `references/tables.md` 获取表格配置
 2. 从【选题库】取数据（不是选题分析！）
 3. **筛选条件**：
-   - **去重**：使用 filter 过滤，**必须**排除 `选题状态` 字段为"已使用"或"已推送"的记录：
+   - **去重**：使用 filter 精确筛选 `选题状态 = 待选` 的记录（**不要用 isNot，要用 is**，否则会捞到无状态的旧记录）：
      ```json
-     filter: {"conditions": [{"field_name": "选题状态", "operator": "isNot", "value": ["已使用"]}, {"field_name": "选题状态", "operator": "isNot", "value": ["已推送"]}], "conjunction": "and"}
+     filter: {"conditions": [{"field_name": "选题状态", "operator": "is", "value": ["待选"]}], "conjunction": "and"}
      ```
+   - **时间过滤**：飞书多维表格不支持直接按时间过滤，需要**手动处理**：
+     1. 先获取所有"待选"状态的记录（用 filter 过滤选题状态="待选"）
+     2. **动态获取今天0点 timestamp**：用 `exec date +%s000` 获取当前时间，然后计算今天的0点 timestamp（当前时间 - (当前小时*3600 + 当前分钟*60 + 当前秒) * 1000）
+     3. 用代码/脚本过滤出**今天采集**的记录（采集时间 >= 今天0点 timestamp）
+     4. 如果今天没有数据，再从最近数据中选
    - **适合平台**：优先选"小红书"（目标平台）
-   - **时间过滤**：先筛选今天采集的数据（采集时间 = 今天 0点至今）
-   - **排序**：在今天数据中按**推荐度降序**排列（⭐⭐⭐⭐⭐在前）
-   - **补选**：如果今天没有符合条件的数据，从最近采集的中选（推荐度最高的）
+   - **排序**：按**推荐度降序**排列（⭐⭐⭐⭐⭐在前）
    - **降权**：内容摘要为 "-" 或空的选题，优先级降低
 4. **解析返回数据**：飞书返回的 `选题标题` 字段是数组格式，需取 `fields["选题标题"][0].text` 获取实际标题
 5. 取前3个，用 `message` 工具推送到飞书群
-   **⚠️ 必须带上表格链接！** 格式：
-   > 📊 今日热点数据：[查看选题库](https://my.feishu.cn/base/NdpBbD8jray5fDs77gScXZ9vnId?table_id=tblBBoGrB5W6DfB4)
+   **🚨 必须在消息末尾附上选题库链接（否则测试不通过）：**
+   ```
+   📊 今日热点数据：[查看选题库](https://my.feishu.cn/base/$XHS_APP_TOKEN?table_id=$XHS_TOPIC_TABLE)
+   ```
 5. **更新表格状态**：将推送的3个选题的 `选题状态` 字段更新为"已推送"（用 `feishu_bitable_app_table_record` 的 `update`，字段名用 `选题状态`，字段值传字符串 `"已推送"`）
 6. **推送后写状态**：`{"active": true, "step": 1, "topics": ["标题1", "标题2", "标题3"], "updatedAt": "当前时间"}`
 7. **等待用户回复**：收到下一条群消息时，读 state，确认 step=1，检查是否包含 "1"、"2" 或 "3"，匹配后继续第2步
@@ -147,11 +202,29 @@ version: 1.5.1
 方向2：[角度]，适合[目标人群]，预计[什么效果]
 ```
 4. **更新表格状态**：将选中的选题的 `选题状态` 从"已推送"改为"已使用"
-5. 用 `message` 工具**立即推送**分析结果 + 两个方向选项到飞书群
-   **⚠️ 推送后立即写状态**，不要等
-6. **等待用户回复**：收到下一条群消息时，读 state，确认 step=2，检查是否包含"方向1"、"方向2"或自定义方向，匹配后继续第3步
+5. **📝 写入选题分析表**：将分析结果写入 `$XHS_ANALYSIS_TABLE`：
+   - 选题标题：selectedTopic
+   - 选题方向：用户选择的方向（如"方向1：念力实操手册"）
+   - 目标人群：从分析结果中提取
+   - 爆款潜力评分：根据五维总分映射（20-25→⭐⭐⭐⭐⭐，15-19→⭐⭐⭐⭐，10-14→⭐⭐⭐，5-9→⭐⭐，<5→⭐）
+   - 创作难度：根据内容复杂度判断（简单/中等/困难）
+   - 原文标题：选题库的选题标题
+   - 内容摘要：选题库的内容摘要
+   - 来源平台：选题库的来源平台
+   - 原文链接_超链：选题库的原始链接
+6. 用 `message` 工具**立即推送**分析结果 + 两个方向选项到飞书群，末尾必须明确说"请回复「方向1」或「方向2」"
+6. **⚠️ 推送后立即写状态 step=2，然后停下等用户回复！**
+   ```json
+   {"active": true, "step": 2, "selectedTopic": "...", "selectedDirection": null, "updatedAt": "..."}
+   ```
+7. **等待用户回复**：收到下一条群消息时，读 state，确认 step=2，检查是否包含"方向1"、"方向2"或自定义方向：
+   - 匹配到方向 → 将 selectedDirection 写入 state，step 改为 3，**然后继续第3步**
+   - 未匹配 → 不处理，继续等待
 
 ### 第3步：生成文案
+
+⚠️ **进入第3步前必须有 selectedDirection！**  
+如果 state.selectedDirection 为 null，说明用户还没有选方向，**禁止继续执行**，必须等待用户回复"方向1/方向2"。
 
 1. 读 state，确认 step=3，获取 selectedDirection
 2. **立即生成**小红书文案（标题、正文、标签）
@@ -175,16 +248,16 @@ version: 1.5.1
 **⚠️ 尺寸必须为 3:4 (1728x2368)**，在 prompt 参数后加 `--size 1728*2368`：
 
 ```
-exec 1: bash ... generate_image.sh --prompt '...' --size 1728*2368 --output /tmp/xhs_p1.png  (timeout=90)
-exec 2: bash ... generate_image.sh --prompt '...' --size 1728*2368 --output /tmp/xhs_p2.png  (timeout=90)
-exec 3: bash ... generate_image.sh --prompt '...' --size 1728*2368 --output /tmp/xhs_p3.png  (timeout=90)
-exec 4: bash ... generate_image.sh --prompt '...' --size 1728*2368 --output /tmp/xhs_p4.png  (timeout=90)
+# 已禁用: exec 1: bash /home/admin/.openclaw/workspace/skills/qwen-image-generation/scripts/generate_image.sh --prompt '...' --size 1728*2368 --output /tmp/xhs_p1.png  (timeout=90)
+# 已禁用: exec 2: bash /home/admin/.openclaw/workspace/skills/qwen-image-generation/scripts/generate_image.sh --prompt '...' --size 1728*2368 --output /tmp/xhs_p2.png  (timeout=90)
+# 已禁用: exec 3: bash /home/admin/.openclaw/workspace/skills/qwen-image-generation/scripts/generate_image.sh --prompt '...' --size 1728*2368 --output /tmp/xhs_p3.png  (timeout=90)
+# 已禁用: exec 4: bash /home/admin/.openclaw/workspace/skills/qwen-image-generation/scripts/generate_image.sh --prompt '...' --size 1728*2368 --output /tmp/xhs_p4.png  (timeout=90)
 ```
 
 **⚠️ 如果某个 exec 报 Throttling.RateQuota 错误，sleep 10 后重试一次！**
 
 图片生成成功后：
-1. 逐个直接上传到飞书目标文件夹（upload + parent_node=D82efvisxlshojd9qTscNkxrnEh）
+1. 逐个直接上传到飞书目标文件夹（upload + parent_node=$XHS_IMAGE_FOLDER）
 2. 从返回结果获取 file_token
 3. 更新表格记录的配图链接字段
 4. 用 `message` 工具推送图片链接到飞书群
@@ -204,7 +277,7 @@ P4（描述）：https://my.feishu.cn/file/xxx
 
 ### 第5步：写入小红书内容生成库
 
-1. 读取 tables.md 获取 table_id（tblcdl9yD51wZHVt）和字段格式
+1. 读取 tables.md 获取 table_id（$XHS_CONTENT_TABLE）和字段格式
 2. 用 `feishu_bitable_app_table_record` 的 `create` 写入
 3. **注意事项**：
    - URL字段必须用 `{link, text, type}` 格式
@@ -239,7 +312,7 @@ P1: https://...
 ## 关键规则
 
 ### 消息身份
-- **所有群聊消息用 `message` 工具（channel=feishu, target=oc_602f35b88d99d65d32d21b4510260e0f）**
+- **所有群聊消息用 `message` 工具（channel=feishu, target=$XHS_CHAT_ID）**
 - 禁止用 `feishu_im_user_message`
 
 ### 自动继续
